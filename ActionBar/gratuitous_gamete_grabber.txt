@@ -4,34 +4,34 @@ exit;
 
 <line>
 <button> 1 line 1
-label=
-icon=gratuitous_gamete_grabber/image1_1.png
+label=max_thresh
+icon=gratuitous_gamete_grabber/imageTest.png
 arg=<macro>
 run("MaxThreshold ");
 </macro>
 <button> 2 line 1
 label=subtract_background
-icon=gratuitous_gamete_grabber/image2_1.png
+icon=gratuitous_gamete_grabber/imageB.png
 arg=<macro>
 run("Subtract Background...", "rolling=10");
 </macro>
 <button> 3 line 1
 label=enhance_contrast
-icon=gratuitous_gamete_grabber/image3_1.png
+icon=gratuitous_gamete_grabber/imageC.png
 arg=<macro>
-run("Enhance Contrast...", "saturated=0.3");
+run("Enhance Contrast", "saturated=0.35");
 </macro>
 <button> 4 line 1
-label=button_4_1
-icon=gratuitous_gamete_grabber/image4_1.png
+label=dilate_binary
+icon=gratuitous_gamete_grabber/imageB.png
 arg=<macro>
-showMessage("You pressed button 4 line 1");
+run("Maximum...", "radius=1");
 </macro>
 <button> 5 line 1
-label=button_5_1
-icon=gratuitous_gamete_grabber/image5_1.png
+label=auto_threshold
+icon=gratuitous_gamete_grabber/imageTr.png
 arg=<macro>
-showMessage("You pressed button 5 line 1");
+run("Threshold...");
 </macro>
 <button> 6 line 1
 label=button_6_1
