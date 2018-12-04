@@ -36,8 +36,12 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 		this.path = new ArrayList<PathDist>();
 		IJ.register(mouseEvent_.class);
 		createCurve(img.getProcessor());
+		ImageConverter imgConv = new ImageConverter(img);
+		imgConv.convertToRGB();
+		this.img = img;
+		System.out.println(img.getStackSize());
 		//smoothPoints2D(this.curve, this.adjacencyList);
-		return DOES_8G;
+		return DOES_RGB+DOES_STACKS;
 	}
 
 	public void run(ImageProcessor ip) {
@@ -66,11 +70,11 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 		// rightClick
 		if ((e.getModifiers() & Event.META_MASK) != 0) {
 			IJ.log("right click today!!");
-			finalizeLastPath();
 		}
 		// shiftLeftClick
 		else if ((e.getModifiers() & Event.SHIFT_MASK) != 0) {
 			IJ.log("Mouse pressed: " + offscreenX + "," + offscreenY + modifiers(e.getModifiers()));
+			finalizeLastPath();
 		}
 		// leftClick
 		else {
@@ -293,39 +297,55 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 
 	public void tempPath(PointPixel nextPoint) {
 		ImageProcessor ip = img.getProcessor();
-		byte[] image = (byte[]) ip.getPixels();
+		int[] image = (int[]) ip.getPixels();
 		PathDist nextPath = getShortestPath(nextPoint);
 		tempPath = nextPath;
+		
+		int r = (255 & 0xFF) << 16;
+		int g = (0 & 0xFF) << 8;
+		int b = (0 & 0xFF);
+		
 		for (PointPixel pp : nextPath.path) {
 			int[] pixel = pp.pixel;
 			// SetColor
-			image[pixel[0] + width * pixel[1]] = 20;
+			image[pixel[0] + width * pixel[1]] = (r+b+g);
 		}
 	}
 
 	public void undoLastTempPath() {
 		ImageProcessor ip = img.getProcessor();
-		byte[] image = (byte[]) ip.getPixels();
+		int[] image = (int[]) ip.getPixels();
+		
+		int r = (0 & 0xFF) << 16;
+		int g = (0 & 0xFF) << 8;
+		int b = (255 & 0xFF);
+		
+		
 		if (tempPath != null) {
 			for (PointPixel pp : tempPath.path) {
 				int[] pixel = pp.pixel;
-				image[pixel[0] + width * pixel[1]] = (byte) -1;
+				image[pixel[0] + width * pixel[1]] = 0;
 			}
 			PathDist lastPath = path.get(path.size()-1);
 			for(PointPixel pp : lastPath.path) {
 				int[] pixel = pp.pixel;
-				image[pixel[0] + width * pixel[1]] = 100; 
+				image[pixel[0] + width * pixel[1]] = (r+g+b); 
 			}
 		}
 	}
 
 	public void finalizeLastPath() {
 		ImageProcessor ip = img.getProcessor();
-		byte[] image = (byte[]) ip.getPixels();
+		int[] image = (int[]) ip.getPixels();
+		
+		int r = (0 & 0xFF) << 16;
+		int g = (0 & 0xFF) << 8;
+		int b = (255 & 0xFF);
+		
 		if (tempPath != null) {
 			for (PointPixel pp : tempPath.path) {
 				int[] pixel = pp.pixel;
-				image[pixel[0] + width * pixel[1]] = 100;
+				image[pixel[0] + width * pixel[1]] = (r+g+b);
 				this.path.add(tempPath);
 			}
 		}
