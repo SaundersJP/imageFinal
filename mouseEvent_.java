@@ -77,7 +77,12 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 			finalizeLastPath();
 		}
 		// leftClick
-		else {
+		else if ((e.getModifiers() & Event.CTRL_MASK) != 0){
+			Double length = computePathDist(path, curve, adjacencyList);
+			IJ.log(length.toString());
+		}
+		else
+		{
 			IJ.log("Left click");
 			PointPixel closestPoint = getClosestPoint(this.curve, offscreenX, offscreenY);
 			Point2D closestPoint2D = closestPoint.p;
@@ -196,6 +201,23 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 		this.adjacencyList = adjList;
 	}
 
+	public double computePathDist(ArrayList<PathDist> paths, ArrayList<PointPixel> points, ArrayList<ArrayList<Integer>> adjList) {
+		double length = 0;
+		
+		smoothPoints2D(points, adjList);
+		
+		for(PathDist path : paths) {
+			for(int i = 0; i < path.path.size() - 1; ++i) {
+				Point2D p1 = path.path.get(i).p;
+				Point2D p2 = path.path.get(i+1).p;
+				
+				length += p1.distance(p2);
+			}
+		}
+		
+		return length;
+	}
+	
 	public void smoothPoints2D(ArrayList<PointPixel> points, ArrayList<ArrayList<Integer>> adjList) {
 		double lambda = .5;
 		double k = .001;
