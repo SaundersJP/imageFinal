@@ -17,11 +17,9 @@ public class MaxThreshold_  implements PlugInFilter {
 		int h = ip.getHeight();
 		Rectangle roi = ip.getRoi();
 		
-		ImagePlus maxed = NewImage.createByteImage("maxValImage", w, h, 1, NewImage.FILL_BLACK);
-		ImageProcessor max_ip = maxed.getProcessor();
+		ImageProcessor max_ip = ip.duplicate();
 		max_ip.copyBits(ip, 0, 0, Blitter.COPY);
 
-		max_ip = maxed.getProcessor();
 		byte[] pixels = (byte[])ip.getPixels();
 		
 		int max = 0;
@@ -29,7 +27,7 @@ public class MaxThreshold_  implements PlugInFilter {
 			int offset = w * y;
 			for(int x=roi.x; x < roi.x+roi.width; x++) {
 				int position = offset + x;
-				int currVal = (int)pixels[position];
+				int currVal = Byte.toUnsignedInt(pixels[position]);
 				if(currVal > max) {
 					max = currVal;
 				}
