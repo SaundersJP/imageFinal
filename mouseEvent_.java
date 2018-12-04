@@ -101,16 +101,22 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 			IJ.log("right click today!!");
 		}
 		// shiftLeftClick
-		else if ((e.getModifiers() & Event.SHIFT_MASK) != 0) {
+		else if (((e.getModifiers() & Event.CTRL_MASK) == 0) && ((e.getModifiers() & Event.SHIFT_MASK) != 0)) {
 			IJ.log("Mouse pressed: " + offscreenX + "," + offscreenY + modifiers(e.getModifiers()));
 			finalizeLastPath();
 			img.updateAndDraw();
 			// output.updateAndDraw();
 		}
 		// ctrlLeftClick
-		else if ((e.getModifiers() & Event.CTRL_MASK) != 0) {
+		else if (((e.getModifiers() & Event.CTRL_MASK) != 0) && ((e.getModifiers() & Event.SHIFT_MASK) == 0)) {
 			Double length = computePathDist(path, curve, adjacencyList);
 			IJ.log(Double.toString(length / sperm));
+		}
+		// ctrlShiftLeftClick
+		else if (((e.getModifiers() & Event.CTRL_MASK) != 0) && ((e.getModifiers() & Event.SHIFT_MASK) != 0)) {
+			if(path.size() > 0) {
+				undoLastPath();
+			}
 		}
 		// leftClick
 		else {
@@ -394,12 +400,39 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 			tempPath = null;
 		}
 	}
+	public void undoLastPath() {
+		ImageProcessor ip = img.getProcessor();
+		int[] image = (int[]) ip.getPixels();
+		int r = (0 & 0xFF) << 16;
+		int g = (0 & 0xFF) << 8;
+		int b = (255 & 0xFF);
+		
+		if(tempPath != null) {
+			for (PointPixel pp : tempPath.path) {
+				int[] pixel = pp.pixel;
+				image[pixel[0] + width * pixel[1]] = (255 & 0xFF) << 8;
+			}
+		}
+		tempPath = path.get(path.size()-1);
+		path.remove(path.size()-1);
+		for(PathDist lastPath : path) {
+			for (PointPixel pp : lastPath.path) {
+				int[] pixel = pp.pixel;
+				image[pixel[0] + width * pixel[1]] = (r + g + b);
+			}
+		}
+		for (PointPixel pp : tempPath.path) {
+			int[] pixel = pp.pixel;
+			image[pixel[0] + width * pixel[1]] = (255 & 0xFF) << 16;
+		}
+		
+	}
 
 	public double computePathDist(ArrayList<PathDist> paths, ArrayList<PointPixel> points,
 			ArrayList<ArrayList<Integer>> adjList) {
 		double length = 0;
 
-		// smoothPoints2D(points, adjList);
+		smoothPoints2D(points, adjList);
 
 		for (PathDist path : paths) {
 			ArrayList<PointPixel> plist = path.path;
