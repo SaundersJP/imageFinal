@@ -10,6 +10,7 @@
 import ij.IJ;
 import ij.ImageJ;
 import ij.ImagePlus;
+import ij.Macro;
 import ij.gui.GenericDialog;
 import ij.gui.NewImage;
 import ij.plugin.PlugIn;
@@ -39,13 +40,30 @@ public class Trim_ implements PlugInFilter {
 	public double value;
 	public String name;
 	
+	// parameters from IJ
+	Double lowX1;
+	Double hiX1;
+	Double lowY1;
+	Double hiY1;
+
+	Double lowX2;
+	Double hiX2;
+	Double lowY2;
+	Double hiY2;
+	
 	@Override
 	public int setup(String arg, ImagePlus imp) {
-		if (arg.equals("about")) {
-			showAbout();
-			return DONE;
-		}
-
+		arg = Macro.getOptions();
+		String[] args = arg.split(",");
+		lowX1 = Double.parseDouble(args[0]);
+		lowY1 = Double.parseDouble(args[1]);
+		hiX1 = Double.parseDouble(args[2]);
+		hiY1 = Double.parseDouble(args[3]);
+		lowX2 = Double.parseDouble(args[4]);
+		lowY2 = Double.parseDouble(args[5]);
+		hiX2 = Double.parseDouble(args[6]);
+		hiY2 = Double.parseDouble(args[7]);
+		
 		image = imp;
 		return DOES_8G | DOES_16 | DOES_32 | DOES_RGB;
 	}
@@ -57,7 +75,7 @@ public class Trim_ implements PlugInFilter {
 		height = ip.getHeight();
 
 		byte[] pixels = (byte[]) ip.getPixels();
-		ij.gui.Roi[] rois = new ij.gui.Roi[0];
+		ij.gui.Roi[] rois = {new ij.gui.Roi(lowX1, lowY1, hiX1-lowX1, hiY1-lowY1), new ij.gui.Roi(lowX2, lowY2, hiX2-lowX2, hiY2-lowY2)};
 		byte[] output = trimSperm(pixels, width, height, rois);
 
 		ByteProcessor bp = new ByteProcessor(width, height, output);
@@ -65,103 +83,6 @@ public class Trim_ implements PlugInFilter {
 		image.show();
 		image.updateAndDraw();
 	}
-	
-	/**
-	 * Process an image.
-	 * <p>
-	 * Please provide this method even if {@link IJ.plugin.filter.PlugInFilter} does
-	 * require it; the method
-	 * {@link IJ.plugin.filter.PlugInFilter#run(IJ.process.ImageProcessor)} can only
-	 * handle 2-dimensional data.
-	 * </p>
-	 * <p>
-	 * If your plugin does not change the pixels in-place, make this method return
-	 * the results and change the {@link #setup(java.lang.String, IJ.ImagePlus)}
-	 * method to return also the <i>DOES_NOTHING</i> flag.
-	 * </p>
-	 *
-	 * @param image
-	 *            the image (possible multi-dimensional)
-	 */
-	public void process(ImagePlus image) {
-		// slice numbers start with 1 for historical reasons
-		for (int i = 1; i <= image.getStackSize(); i++)
-			process(image.getStack().getProcessor(i));
-	}
-
-	// Select processing method depending on image type
-	public void process(ImageProcessor ip) {
-		int type = image.getType();
-		if (type == ImagePlus.GRAY8)
-			process((byte[]) ip.getPixels());
-		else if (type == ImagePlus.GRAY16)
-			process((short[]) ip.getPixels());
-		else if (type == ImagePlus.GRAY32)
-			process((float[]) ip.getPixels());
-		else if (type == ImagePlus.COLOR_RGB)
-			process((int[]) ip.getPixels());
-		else {
-			throw new RuntimeException("not supported");
-		}
-	}
-
-	// processing of GRAY8 images
-	public void process(byte[] pixels) {
-		for (int y = 0; y < height; y++) {
-			for (int x = 0; x < width; x++) {
-				// process each pixel of the line
-				// example: add 'number' to each pixel
-				pixels[x + y * width] += (byte) value;
-			}
-		}
-	}
-
-	// processing of GRAY16 images
-	public void process(short[] pixels) {
-		for (int y = 0; y < height; y++) {
-			for (int x = 0; x < width; x++) {
-				// process each pixel of the line
-				// example: add 'number' to each pixel
-				pixels[x + y * width] += (short) value;
-			}
-		}
-	}
-
-	// processing of GRAY32 images
-	public void process(float[] pixels) {
-		for (int y = 0; y < height; y++) {
-			for (int x = 0; x < width; x++) {
-				// process each pixel of the line
-				// example: add 'number' to each pixel
-				pixels[x + y * width] += (float) value;
-			}
-		}
-	}
-
-	// processing of COLOR_RGB images
-	public void process(int[] pixels) {
-		for (int y = 0; y < height; y++) {
-			for (int x = 0; x < width; x++) {
-				// process each pixel of the line
-				// example: add 'number' to each pixel
-				pixels[x + y * width] += (int) value;
-			}
-		}
-	}
-
-	public void showAbout() {
-		IJ.showMessage("ProcessPixels", "a template for processing each pixel of an image");
-	}
-
-	/**
-	 * Main method for debugging.
-	 *
-	 * For debugging, it is convenient to have a method that starts ImageJ, loads an
-	 * image and calls the plugin, e.g. after setting breakpoints.
-	 *
-	 * @param args
-	 *            unused
-	 */
 
 	public byte[] trimSperm(byte[] image, int width, int height, ij.gui.Roi[] rois) {
 		Queue<int[]> fillQueue = new LinkedList<int[]>();
@@ -191,10 +112,15 @@ public class Trim_ implements PlugInFilter {
 				continue;
 			}
 			
+			int cont = 0;
 			for (int i = 0; i < rois.length; ++i) {
 				if (rois[i].contains(x, y)) {
-					continue;
+					cont = 1;
 				}
+			}
+			
+			if(cont == 1) {
+				continue;
 			}
 
 			for (int i = 0; i < conn.length; ++i) {

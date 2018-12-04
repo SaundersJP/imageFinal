@@ -20,7 +20,9 @@ import javax.swing.JPanel;
 public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionListener {
 	private int width;
 	private int height;
+	private double sperm = 3.06;
 	protected ImagePlus img;
+	protected ImagePlus output;
 	protected ImageCanvas canvas;
 	protected ArrayList<PointPixel> curve;
 	protected ArrayList<ArrayList<Integer>> adjacencyList;
@@ -29,19 +31,46 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 	protected PathDist tempPath = null;
 	static Vector images = new Vector();
 
+	// Expects a stack of 2 images with the first being a skeleton and the second
+	// the original image
 	public int setup(String arg, ImagePlus img) {
 		this.img = img;
 		this.width = img.getWidth();
 		this.height = img.getHeight();
 		this.path = new ArrayList<PathDist>();
 		IJ.register(mouseEvent_.class);
+
+		byte[] originalPixels = (byte[]) img.getStack().getPixels(2);
+		ImageProcessor original_ip = new ByteProcessor(width, height, originalPixels);
+		output = new ImagePlus("Path", original_ip);
+		ImageConverter output_conv = new ImageConverter(output);
+		output_conv.convertToRGB();
+		ImageProcessor output_ip = output.getProcessor();
+		// output.show();
+
+		ImageStack currStack = img.getImageStack();
+		currStack.deleteSlice(2);
+		img.setStack(currStack);
+		this.img = img;
+
 		createCurve(img.getProcessor());
+
 		ImageConverter imgConv = new ImageConverter(img);
 		imgConv.convertToRGB();
+		ImageProcessor ip = img.getProcessor();
+		ip.copyBits(output_ip, 0, 0, Blitter.COPY);
+
+		int[] pixels = (int[]) ip.getPixels();
+
+		for (PointPixel pp : curve) {
+			pixels[pp.pixel[0] + pp.pixel[1] * width] = (((255 & 0xFF) << 8));
+		}
+
+		img.updateAndDraw();
+
 		this.img = img;
-		System.out.println(img.getStackSize());
-		//smoothPoints2D(this.curve, this.adjacencyList);
-		return DOES_RGB+DOES_STACKS;
+		// smoothPoints2D(this.curve, this.adjacencyList);
+		return DOES_RGB + DOES_STACKS;
 	}
 
 	public void run(ImageProcessor ip) {
@@ -75,14 +104,16 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 		else if ((e.getModifiers() & Event.SHIFT_MASK) != 0) {
 			IJ.log("Mouse pressed: " + offscreenX + "," + offscreenY + modifiers(e.getModifiers()));
 			finalizeLastPath();
+			img.updateAndDraw();
+			// output.updateAndDraw();
+		}
+		// ctrlLeftClick
+		else if ((e.getModifiers() & Event.CTRL_MASK) != 0) {
+			Double length = computePathDist(path, curve, adjacencyList);
+			IJ.log(Double.toString(length / sperm));
 		}
 		// leftClick
-		else if ((e.getModifiers() & Event.CTRL_MASK) != 0){
-			Double length = computePathDist(path, curve, adjacencyList);
-			IJ.log(length.toString());
-		}
-		else
-		{
+		else {
 			IJ.log("Left click");
 			PointPixel closestPoint = getClosestPoint(this.curve, offscreenX, offscreenY);
 			Point2D closestPoint2D = closestPoint.p;
@@ -90,7 +121,7 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 			int closestY = closestPoint.pixel[1];
 			IJ.log(Integer.toString(closestX));
 			IJ.log(Integer.toString(closestY));
-			
+
 			if (this.path.size() == 0) {
 				int indexInCurve = this.curve.indexOf(closestPoint);
 				PathDist currPath = new PathDist(closestPoint, 0, indexInCurve);
@@ -102,22 +133,17 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 				IJ.log("new path");
 				tempPath(closestPoint);
 			}
-//			int index = curve.indexOf(closestPoint);
-//			ArrayList<Integer> currAdj = adjacencyList.get(index);
-//			for(int id : currAdj) {
-//				PointPixel currPixel = curve.get(id);
-//				int currX = currPixel.pixel[0];
-//				int currY = currPixel.pixel[1];
-//				img.getProcessor().set(currX, currY, 0);
-//			}
-			img.updateAndDraw();
 
+			img.updateAndDraw();
+			// output.updateAndDraw();
 		}
 	}
 
-	public void mouseReleased(MouseEvent e) {}
+	public void mouseReleased(MouseEvent e) {
+	}
 
-	public void mouseDragged(MouseEvent e) {}
+	public void mouseDragged(MouseEvent e) {
+	}
 
 	public static String modifiers(int flags) {
 		String s = " [ ";
@@ -201,23 +227,6 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 		this.adjacencyList = adjList;
 	}
 
-	public double computePathDist(ArrayList<PathDist> paths, ArrayList<PointPixel> points, ArrayList<ArrayList<Integer>> adjList) {
-		double length = 0;
-		
-		smoothPoints2D(points, adjList);
-		
-		for(PathDist path : paths) {
-			for(int i = 0; i < path.path.size() - 1; ++i) {
-				Point2D p1 = path.path.get(i).p;
-				Point2D p2 = path.path.get(i+1).p;
-				
-				length += p1.distance(p2);
-			}
-		}
-		
-		return length;
-	}
-	
 	public void smoothPoints2D(ArrayList<PointPixel> points, ArrayList<ArrayList<Integer>> adjList) {
 		double lambda = .5;
 		double k = .001;
@@ -265,21 +274,20 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 
 	public PathDist getShortestPath(PointPixel nextPoint) {
 		PathDist lastPoint = path.get(path.size() - 1);
-		
-		if(lastPoint.p == nextPoint) {
+
+		if (lastPoint.p == nextPoint) {
 			return lastPoint;
 		}
 		int ind = curve.indexOf(lastPoint.p);
 		PriorityQueue<PathDist> pathEnds = new PriorityQueue<PathDist>(new SortByDist());
 		pathEnds.add(new PathDist(lastPoint.p, 0, ind));
-		
 
 		HashSet<PointPixel> addedPoints = new HashSet<PointPixel>();
 		addedPoints.add(lastPoint.p);
-		
+
 		while (true) {
 			PathDist pd = pathEnds.poll();
-			if(pd == null) {
+			if (pd == null) {
 				System.out.println("F");
 			}
 			int index = pd.index;
@@ -291,7 +299,7 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 				}
 				newPath.addPoint(newPP, pointNum);
 				addedPoints.add(newPP);
-				if(newPP.equals(nextPoint)) {
+				if (newPP.equals(nextPoint)) {
 					return newPath;
 				}
 				if (newPP == nextPoint) {
@@ -302,56 +310,66 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 		}
 	}
 
-//	public PathDist computeNextPath(Point2D nextPoint) {
-//		if (curve.size() == 0)
-//			return null;
-//		PointPixel closestPoint = curve.get(0);
-//		double minDist = closestPoint.p.distance(nextPoint);
-//		for (PointPixel pp : curve) {
-//			double dist = pp.p.distance(nextPoint);
-//			if (dist < minDist) {
-//				closestPoint = pp;
-//			}
-//		}	
-//
-//		return getShortestPath(closestPoint);
-//	}
+	// public PathDist computeNextPath(Point2D nextPoint) {
+	// if (curve.size() == 0)
+	// return null;
+	// PointPixel closestPoint = curve.get(0);
+	// double minDist = closestPoint.p.distance(nextPoint);
+	// for (PointPixel pp : curve) {
+	// double dist = pp.p.distance(nextPoint);
+	// if (dist < minDist) {
+	// closestPoint = pp;
+	// }
+	// }
+	//
+	// return getShortestPath(closestPoint);
+	// }
 
 	public void tempPath(PointPixel nextPoint) {
 		ImageProcessor ip = img.getProcessor();
 		int[] image = (int[]) ip.getPixels();
+
+		// ImageProcessor out_ip = output.getProcessor();
+		// int[] outputImage = (int[]) out_ip.getPixels();
+
 		PathDist nextPath = getShortestPath(nextPoint);
 		tempPath = nextPath;
-		
+
 		int r = (255 & 0xFF) << 16;
 		int g = (0 & 0xFF) << 8;
 		int b = (0 & 0xFF);
-		
+
 		for (PointPixel pp : nextPath.path) {
 			int[] pixel = pp.pixel;
 			// SetColor
-			image[pixel[0] + width * pixel[1]] = (r+b+g);
+			image[pixel[0] + width * pixel[1]] = (r + b + g);
+			// outputImage[pixel[0] + width * pixel[1]] = (r + b + g);
 		}
 	}
 
 	public void undoLastTempPath() {
 		ImageProcessor ip = img.getProcessor();
 		int[] image = (int[]) ip.getPixels();
-		
+
+		// ImageProcessor out_ip = output.getProcessor();
+		// int[] outputImage = (int[]) out_ip.getPixels();
+
 		int r = (0 & 0xFF) << 16;
 		int g = (0 & 0xFF) << 8;
 		int b = (255 & 0xFF);
-		
-		
+
 		if (tempPath != null) {
 			for (PointPixel pp : tempPath.path) {
 				int[] pixel = pp.pixel;
-				image[pixel[0] + width * pixel[1]] = 0;
+				image[pixel[0] + width * pixel[1]] = ((255 & 0xFF) << 8);
+				// outputImage[pixel[0] + width * pixel[1]] = 0;
 			}
-			PathDist lastPath = path.get(path.size()-1);
-			for(PointPixel pp : lastPath.path) {
-				int[] pixel = pp.pixel;
-				image[pixel[0] + width * pixel[1]] = (r+g+b); 
+			for(PathDist lastPath : path) {
+				for (PointPixel pp : lastPath.path) {
+					int[] pixel = pp.pixel;
+					image[pixel[0] + width * pixel[1]] = (r + g + b);
+					// outputImage[pixel[0] + width * pixel[1]] = (r + g + b);
+				}
 			}
 		}
 	}
@@ -359,18 +377,44 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 	public void finalizeLastPath() {
 		ImageProcessor ip = img.getProcessor();
 		int[] image = (int[]) ip.getPixels();
-		
+		// ImageProcessor out_ip = output.getProcessor();
+		// int[] outputImage = (int[]) out_ip.getPixels();
+
 		int r = (0 & 0xFF) << 16;
 		int g = (0 & 0xFF) << 8;
 		int b = (255 & 0xFF);
-		
+
 		if (tempPath != null) {
 			for (PointPixel pp : tempPath.path) {
 				int[] pixel = pp.pixel;
-				image[pixel[0] + width * pixel[1]] = (r+g+b);
-				this.path.add(tempPath);
+				image[pixel[0] + width * pixel[1]] = (r + g + b);
+				// outputImage[pixel[0] + width * pixel[1]] = (r + g + b);
 			}
+			this.path.add(tempPath);
+			tempPath = null;
 		}
+	}
+
+	public double computePathDist(ArrayList<PathDist> paths, ArrayList<PointPixel> points,
+			ArrayList<ArrayList<Integer>> adjList) {
+		double length = 0;
+
+		// smoothPoints2D(points, adjList);
+
+		for (PathDist path : paths) {
+			ArrayList<PointPixel> plist = path.path;
+			for (int i = 0; i < plist.size() - 1; ++i) {
+				// Point2D p1 = path.path.get(i).p;
+				// Point2D p2 = path.path.get(i + 1).p;
+				// if(p1.distance(p2) < 0) {
+				// System.out.println("FUCK");
+				// }
+				// length += p1.distance(p2);
+			}
+			length += path.dist;
+			System.out.println(length);
+		}
+		return length;
 	}
 
 	class PointPixel {
@@ -410,7 +454,7 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 			p = pd.p.clone();
 			dist = pd.dist;
 			index = pd.index;
-			path = (ArrayList<PointPixel>) pd.path.clone();
+			path = new ArrayList<PointPixel>(pd.path);
 		}
 
 		public PathDist clone() {
@@ -429,8 +473,10 @@ public class mouseEvent_ implements PlugInFilter, MouseListener, MouseMotionList
 
 		@Override
 		public int compare(PathDist a, PathDist b) {
-			if (a.dist < b.dist) return -1;
-			if (a.dist > b.dist) return 1;
+			if (a.dist < b.dist)
+				return -1;
+			if (a.dist > b.dist)
+				return 1;
 			return 0;
 		}
 	}
